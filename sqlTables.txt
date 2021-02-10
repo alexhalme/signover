@@ -1,0 +1,29 @@
+CREATE DATABASE `signout`;
+CREATE USER `signout`@`localhost` IDENTIFIED BY 'TYiY9C2nnzL3K4RB9KYr';
+GRANT SELECT, INSERT, DELETE, UPDATE ON `signout`.* TO `signout`@`localhost`;
+
+CREATE TABLE `users` (
+    `uuid` VARCHAR(36) NOT NULL,
+    `email` VARCHAR(99) NOT NULL,
+    `phone` VARCHAR(12) NULL,
+    `dat` MEDIUMBLOB NULL,
+    `priv` BLOB NULL,
+    `pub` BLOB NULL,
+    `saes` BLOB NULL,
+    `pwrdchange` boolean DEFAULT TRUE,
+    `active` INT DEFAULT 0,
+PRIMARY KEY (`uuid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `lists` (
+    `luid` VARCHAR(36) NOT NULL,
+    `dat` MEDIUMBLOB NULL,
+    `active` INT DEFAULT 0,
+PRIMARY KEY (`uuid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `rights` (
+    `uuid` VARCHAR(36) NOT NULL,
+    `luid` VARCHAR(36) NOT NULL,
+    `priv` INT DEFAULT 0,
+    `aes` BLOB NULL,
+    `disp` BOOLEAN DEFAULT FALSE,
+PRIMARY KEY (`uuid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

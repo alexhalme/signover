@@ -12,6 +12,7 @@ CREATE TABLE `users` (
     `saes` BLOB NULL,
     `pwrdchange` boolean DEFAULT TRUE,
     `active` INT DEFAULT 0,
+    `nextkeys` BLOB NULL,
 PRIMARY KEY (`uuid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `lists` (

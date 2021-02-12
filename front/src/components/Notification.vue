@@ -28,7 +28,7 @@
   </div>
 </template>
 <script>
-import EventBus from 'assets/eventbus.js'
+import { EventBus } from 'assets/vuecommon.js'
 
 export default {
   name: 'Notification',

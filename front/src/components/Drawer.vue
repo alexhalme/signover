@@ -3,8 +3,8 @@
     v-model="show"
     show-if-above
     bordered
-    content-class="bg-grey-1"
-    :width="1000"
+    content-class="bg-grey-1 q-mt-xl"
+    :width="520"
   >
     <div class="row no-wrap">
       <q-btn dense flat  icon="add_circle_outline" class="col-auto"

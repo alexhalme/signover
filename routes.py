@@ -18,6 +18,7 @@ import requests
 import gv
 import httpx
 import lists
+import patients
 import re
 
 app = FastAPI()
@@ -68,6 +69,9 @@ def wipe(something):
   for letter in something:
     table = {'l': 'lists', 'r': 'rights', 'u': 'users', 'p': 'patients'}
     sql.deleteCond(table.get(letter), condition = 'TRUE')
+
+  if letter == 'u':
+    authso.UserMaker().addUser('alex@alexhal.me')
 
   wsql.WSQL.closeAll()
   return JSONResponse({'wiped': True})
@@ -123,29 +127,39 @@ class Login(BaseModel):
 @app.post('/login')
 def doLogin(login: Login, req: Request, scso: Optional[str] = Cookie(None)):
   auth = authso.AuthSo(email = login.email, req = req, cookie = scso)
+
+  # no such user
+  if not auth.userDict:
+    auth.setStep(-1)
+    return closeAjax(auth.setResponse({}), noCookie=True)
+
+
+  auth.setStep(1)
   if login.pbkdf2b64:
-    cookie = auth.getCookie(login)
-    return closeAjax(auth.setResponse({'challenge': auth.getChallenge(), 'cookie': cookie}), noCookie = not cookie)
+    auth = auth.getCookie(login)
+    return closeAjax(auth.setResponse({}), noCookie = not auth.cookieOut)
 
   if login.email:
-    if login.type == 'standard':
-      return closeAjax(auth.setResponse({'challenge': auth.getChallenge()}))
+    if login.type == 'forgot':
+      # reset pwrd requested
+      auth.requestPwrdReset(auth.userDict['uuid'], newAccount=False)
+      return closeAjax(auth.setResponse({'challenge': '', 'type': 'forgot'}))
 
-    # reset pwrd requested
-    auth.requestPwrdReset(auth.userDict['uuid'], newAccount=False)
-    return closeAjax(auth.setResponse({'challenge': False, 'type': 'forgot'}))
+    auth.setStep(0)
+    return closeAjax(auth.getChallenge().setResponse({}))
+
 
   return closeAjax(auth.killSession(), noCookie=True)
 
 # init after login/reload
-@app.post('/init')
-def doInit(req: Request, scso: Optional[str] = Cookie(None)):
+@app.post('/init/{letters}')
+def doInit(letters, req: Request, scso: Optional[str] = Cookie(None)):
   auth = authso.AuthSo(cookie = scso, req = req)
   if not auth.priv:
     return closeAjax(auth.setResponse({'success': False}), noCookie = True)
 
-  auth.setLists()
-  auth.setSelf()
+  for letter in letters:
+    getattr(auth, {'l': 'setLists', 's': 'setSelf', 'p': 'setPts'}.get(letter))()
 
   return closeAjax(auth.setResponse({'success': True}))
 
@@ -212,9 +226,23 @@ def modifyCols(cols: Cols, req: Request, scso: Optional[str] = Cookie(None)):
   return closeAjax(auth.setResponse({}))
 
 
+class Pts(BaseModel):
+  action: str
+  puid: str
+  luid: str
+  dat: dict
 
+@app.post('/pts')
+def modifyCols(pts: Pts, req: Request, scso: Optional[str] = Cookie(None)):
+  auth = authso.AuthSo(cookie=scso, req=req)
+  if not auth.priv:
+    return closeAjax(auth.setResponse({'success': False}), noCookie = True)
 
+  pt = patients.Pt(auth, pts.puid, pts.luid)
 
+  auth.setPts()
+
+  return closeAjax(auth.setResponse({}))
 
 
 

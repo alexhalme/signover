@@ -28,3 +28,13 @@ CREATE TABLE `rights` (
     `aes` BLOB NULL,
     `disp` BOOLEAN DEFAULT FALSE,
 PRIMARY KEY (`uuid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+CREATE TABLE `pts` (
+    `puid` VARCHAR(36) NOT NULL,
+    `luid` VARCHAR(36) NOT NULL,
+    `dat` MEDIUMBLOB DEFAULT NULL,
+    `hx` MEDIUMBLOB DEFAULT NULL,
+    `active` INT DEFAULT 1,
+PRIMARY KEY (`puid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+

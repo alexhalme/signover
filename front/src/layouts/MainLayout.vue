@@ -17,10 +17,16 @@
     />
 
     <q-page-container>
-      {{server}}
-      {{user}} <br> <br>
-      {{solst.slists}} <br> <br>
-      {{solst.dlists}}
+      {{pts}}
+      <div v-if="logged">
+        <div v-for="dlist in solst.dlists" :key="dlist.list.luid">
+          <ptable
+            :dlist="dlist"
+            :colDict="colDict[dlist.list.luid]"
+            v-model="pts[dlist.list.luid]"
+          />
+        </div>
+      </div>
     </q-page-container>
   </q-layout>
 </template>
@@ -29,15 +35,16 @@
 import Topbar from 'components/Topbar.vue'
 import Notification from 'components/Notification.vue'
 import Drawer from 'components/Drawer.vue'
+import Ptable from 'components/Ptable.vue'
 import { EventBus, Store } from 'assets/vuecommon.js'
 import { InitData } from 'assets/initdata.js'
 import $ from 'jquery'
 
-const serverKeysToData = ['user', 'slists', 'dlists']
+const serverKeysToData = ['user', 'slists', 'dlists', 'pts']
 
 export default {
   name: 'MainLayout',
-  components: { Topbar, Notification, Drawer },
+  components: { Topbar, Notification, Drawer, Ptable },
   store: Store,
   data () {
     return InitData()
@@ -64,6 +71,15 @@ export default {
         if (serverKeysToData.indexOf(key) + 1) {
           if (['dlists', 'slists'].indexOf(key) + 1) {
             this.solst[key] = server[key]
+            this.colDict = this.solst.dlists.reduce((acc, x) => { var y = {}; y[x.list.luid] = x.list.dat.cols; return { ...acc, ...y } }, {})
+          } else if (key === 'pts') {
+            this.pts = this.solst.dlists.map(x => x.list.luid).reduce((acc, x) => { var y = {}; y[x] = server.pts.filter(pt => pt.luid === x); return { ...acc, ...y } }, {})
+            for (var luid in this.pts) {
+              var empties = this.colDict[luid].reduce((acc, x) => { var y = {}; y[x.cuid] = x.type === 0 ? { text: '' } : { tasks: [] }; return { ...acc, ...y } }, {})
+              for (var ptIndex in this.pts[luid]) {
+                this.pts[luid][ptIndex].dat = { ...empties, ...this.pts[luid][ptIndex].dat }
+              }
+            }
           } else {
             this[key] = server[key]
           }
@@ -81,7 +97,7 @@ export default {
       $.ajax({
         dataType: 'json',
         type: 'post',
-        url: `${this.server}/init`
+        url: `${this.server}/init/lsp`
       }).done((server) => {
         this.logged = this.logged ? true : server.success
         this.parseServerJSONs(server)

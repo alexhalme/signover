@@ -5,7 +5,9 @@ export function InitData () {
     // server: 'https://so.alexhal.me',
     nextPbkdf2: '',
     user: {},
-    solst: { dlists: [], slists: [] }
+    solst: { dlists: [], slists: [] },
+    pts: {},
+    colDict: {}
   }
 }
 

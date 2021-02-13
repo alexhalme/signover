@@ -11,6 +11,7 @@ import time
 from starlette.responses import JSONResponse
 import lists
 import sms
+import patients
 
 
 class GSQLBridge:
@@ -28,12 +29,74 @@ class GSQLBridge:
     self.SQL.replaceRows('users', [{**userDict, 'saes': b''} for userDict in userDicts])
 
 
-class AuthSo:
+class UserMaker:
+  def __init__(self, sqlCredentials=gv.SQL_CRED):
+    self.sql = wsql.WSQL(*sqlCredentials)
+
+  # add a user from email when init AuthSo
+  def addUser(self, email):
+    if not re.fullmatch(re.compile('^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$'), email):
+      return False
+
+    query = self.sql.fetch(f"SELECT uuid FROM users WHERE email = '{email}'")
+    if query:
+      return query[0][0]
+
+    newUUID = tf.getUUID()
+    self.sql.replaceRows('users', {
+      'uuid': newUUID,
+      'email': email,
+      'priv': None,
+      'pub': None,
+      'dat': tf.jb({'name': email}),
+      'pwrdchange': 1,
+      'active': 0
+    })
+
+    self.requestPwrdReset(newUUID, newAccount=True)
+
+    return newUUID
+
+  def newKeypair(self):
+    password = En()._rnd58(8)
+    keys25519 = Crypt25519()
+    return password, CryW(bytesMessage=En(password)._sha512u() + keys25519.privateBytes,
+                          bytesPwrd=En(password)._sha512u()).encrypt(), keys25519.publicBytes
+
+  def requestPwrdReset(self, uuid, newAccount=False):
+    self.sql.reconnect()
+    userDict = self.sql.getOneDataDict('users', 'uuid', uuid)
+
+    password, priv, pub = self.newKeypair()
+
+    cancel = En()._rnd(32)
+
+    message = {
+      'Subject': 'Signout password change request',
+      'TextPart': f"Dear {tf.bj(userDict['dat'])['name']},\r\nA request to {'create an account' if newAccount else 'change password'} "
+                  f"was made to signout.\r\n\r\nIf you did not make this request, you can cancel it with this link: "
+                  f"https://so.alexhal.me/cancel/{En(AuthSo.ioUUID(uuid) + cancel)._b58()}."
+                  f"\r\n\r\nOtherwise, your temporary password is: {password}.\r\n\r\nThe Signout team."
+    }
+    email = sms.Mailjet(af.iob('mailjetapi.txt').decode('utf8'), 'alex@alexhal.me')
+    # email.send(message, userDict['email'])
+    print(password)
+
+    userDict['nextkeys'] = af.itb(int(time.time())) + En(cancel)._sha256() + pub + priv
+    if newAccount:
+      userDict['pub'] = pub
+    self.sql.replaceRows('users', userDict)
+
+    return password, priv, pub
+
+class AuthSo(UserMaker):
   # store Starlette request
   REQUEST = None
 
   # init either with email (allows getting challenge) or cookie (decrypts)
   def __init__(self, email = None, cookie = None, sqlCredentials = gv.SQL_CRED, req = None):
+    super().__init__()
+
     self.sqlCredentials = sqlCredentials
     self.sql = wsql.WSQL(*sqlCredentials)
     self.email = email
@@ -47,6 +110,8 @@ class AuthSo:
     # sql line for user
     if self.email:
       self.userDict = self.sql.getOneDataDict('users', 'email', self.email)
+      if not self.userDict:
+        return None
 
     # what is returned in routes.py
     if req and not self.REQUEST:
@@ -82,12 +147,24 @@ class AuthSo:
       solsts = [lists.SOList(self, luid) for luid in luids]
       self.response[f"{'s' if specific else ''}{'s' if typeLst else 'd'}lists"] = [solst.vueList(typeLst) for solst in solsts]
 
+  def setPts(self, specific = None):
+    self.sql.reconnect()
+
+    sqlPuids = self.sql.fetch(f"SELECT puid FROM pts WHERE luid in (SELECT luid FROM rights WHERE uuid = '{self.userDict['uuid']}' AND disp = 1 AND luid in (SELECT luid FROM lists WHERE active = 1)) AND active = 1")
+    if not specific and not sqlPuids:
+      return False
+
+    puids = af.iwList(specific) if specific else [x[0] for x in sqlPuids]
+
+    self.response[f"{'s' if specific else ''}pts"] = [patients.Pt(self, puid, skipRights=True).vuePt() for puid in puids]
+
+
   def setSelf(self):
     self.sql.reconnect()
     self.response['user'] = {k: tf.bj(v) if k == 'dat' else v for k, v in self.userDict.items() if k in ['uuid', 'email', 'phone', 'dat', 'pwrdchange']}
 
   # set a response - then used in routes.py when returning
-  def setResponse(self, response):
+  def setResponse(self, response = None):
     self.response.update(response)
     return self
 
@@ -104,16 +181,22 @@ class AuthSo:
     self.userDict.update({
       'nextkeys': None,
       'priv': CryW(bytesMessage = newHash + priv, bytesPwrd = newHash).encrypt(),
-      'pub': pub
+      'pub': pub,
+      'pwrdchange': 0
     })
 
     self.sql.replaceRows('users', self.userDict)
     self.sql.reconnect()
 
+    self.response['type'] = 'passwordchanged'
 
+  def setStep(self, step):
+    self.response['step'] = step
 
   # from PBKDF2 b64 encoded from FE, get cookie
   def getCookie(self, login):
+    self.response['cookie'] = ''
+    self.getChallenge()
     # get encrypted vault for this user and try to decrypt
     decrypted = {
       k: CryW(
@@ -123,29 +206,61 @@ class AuthSo:
     }
 
     decrypted = {k: v for k, v in decrypted.items() if v}
-    if not decrypted:
-      return False
+
+
+    # analyze content of dict to figure out what type is to be sent to front end -> standard, reset, change, first
+    # (cookie and forgot are other 'types' but not relevant here)
+    if self.userDict['nextkeys']:
+      type = 'reset' if self.userDict['priv'] else 'first'
+      if not decrypted:
+        self.response['type'] = type
+        return self
+      if not login.newhash and (not decrypted.get('current') or type == 'first'):
+        self.response['type'] = type
+        return self
+    else:
+      type = 'change' if self.userDict['pwrdchange'] else 'standard'
+      if not decrypted:
+        self.response['type'] = type
+        return self
+      if not login.newhash and type == 'change':
+        self.response['type'] = 'change'
+        return self
+
+    self.response['type'] = 'standard'
 
     # we can cancel the request as user knows password
-    if login.type == 'reset' and decrypted.get('current'):
-      self.sql.wesc(f"UPDATE users SET nextkeys* WHERE uuid*'", v = [(None, self.userDict['uuid'])])
+    if type == 'reset':
+      if decrypted.get('current'):
+        self.sql.wesc(f"UPDATE users SET nextkeys* WHERE uuid*", v = [(None, self.userDict['uuid'])])
+        self.userDict['nextkeys'] = None
+      else:
+        if not login.newhash:
+          self.response['type'] = 'reset'
+          return self
 
     # case where 'nextkeys' needs to be moved to usual permanents vaults ie new user or pwrd reset (not change, reset)
     if set(decrypted.keys()) == {'next'}:
       _, _, pub, _ = self.parseNextKeys(self.userDict['nextkeys'])
-      self.hashedpwrd, self.priv = login.newhash, decrypted.get('next')[64:]
+      self.hashedpwrd, self.priv = af.En(login.newhash)._by64(), decrypted.get('next')[64:]
       self.changePassword(self.hashedpwrd, pub, self.priv)
+
+      # enable lists where assigned
+      if type == 'first':
+        self.sql.wesc(f"UPDATE rights SET disp* WHERE uuid*", v = [(1, self.userDict['uuid'])])
+      else:
+      # otherwise if reset then all keys are lost :(
+        self.sql.wesc(f"UPDATE rights SET aes* WHERE uuid*", v = [(None, self.userDict['uuid'])])
+
     else:
       # decrypt the user's vault which contains (1) the hashed pwrd and (2) the private Ed25519 key
       self.hashedpwrd, self.priv = decrypted.get('current')[0:64], decrypted.get('current')[64:]
 
     # case where we are just Δing password
-    if login.type == 'change':
-      if not login.newhash:
-        return False
-      self.hashedpwrd = login.newhash
-      self.changePassword(self.hashedpwrd, self.userDict['pub'], self.priv)
+    if type == 'change':
 
+      self.hashedpwrd = af.En(login.newhash)._by64()
+      self.changePassword(self.hashedpwrd, self.userDict['pub'], self.priv)
 
 
     # cookie content in bytes: 16 bytes for uuid, 32 bytes of session AES 'secret' (not key) and time UTC, make b64 cookie
@@ -163,7 +278,9 @@ class AuthSo:
 
     self.keyring = Crypt25519(self.priv, self.userDict['pub'])
 
-    return True
+    self.response['cookie'] = self.cookieOut
+
+    return self
 
   # as above but just renewal ie no access to user vault or hashed pwrd
   def renewCookie(self):
@@ -235,75 +352,17 @@ class AuthSo:
       'next': self.parseNextKeys(self.userDict['nextkeys'])[3]
     }
 
-    # analyze content of dict to figure out what type is to be sent to front end -> standard, reset, change, first
-    # (cookie and forgot are other 'types' but not relevant here)
-    if privateKeys.get('next'):
-      self.response['type'] = 'reset' if self.userDict['pub'] else 'first'
-    else:
-      self.response['type'] = 'next' if self.userDict['pwrdchange'] else 'standard'
 
-    return {k: En(CryW.getChallenge(v))._b64() for k, v in privateKeys.items() if v}
+    self.response['challenge'] = {k: En(CryW.getChallenge(v))._b64() for k, v in privateKeys.items() if v}
 
+    return self
 
   def parseNextKeys(self, nextKeys):
     if not nextKeys:
       return b'', b'', b'', b''
     return af.ifb(nextKeys[0:4]), nextKeys[4:36], nextKeys[36:68], nextKeys[68:]
 
-  # add a user from email when init AuthSo
-  def addUser(self, email):
-    if not re.fullmatch(re.compile('^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$'), email):
-      return False
 
-    query = self.sql.fetch(f"SELECT uuid FROM users WHERE email = '{email}'")
-    if query:
-      return query[0][0]
-
-    newUUID = tf.getUUID()
-    self.sql.replaceRows('users', {
-      'uuid': newUUID,
-      'email': email,
-      'priv': None,
-      'pub': None,
-      'dat': tf.jb({'name': email}),
-      'pwrdchange': 1,
-      'active': 0
-    })
-
-    self.requestPwrdReset(newUUID, newAccount = True)
-
-    return newUUID
-
-
-  def newKeypair(self):
-    password = En()._rnd58(8)
-    keys25519 = Crypt25519()
-    return password, CryW(bytesMessage = En(password)._sha512u() + keys25519.privateBytes, bytesPwrd = En(password)._sha512u()).encrypt(), keys25519.publicBytes
-
-  def requestPwrdReset(self, uuid, newAccount = False):
-    self.sql.reconnect()
-    userDict = self.sql.getOneDataDict('users', 'uuid', uuid)
-
-    password, priv, pub = self.newKeypair()
-
-    cancel = En()._rnd(32)
-
-    message = {
-      'Subject': 'Signout password change request',
-      'TextPart': f"Dear {tf.bj(userDict['dat'])['name']},\r\nA request to {'create an account' if newAccount else 'change password'} "
-                  f"was made to signout.\r\n\r\nIf you did not make this request, you can cancel it with this link: "
-                  f"https://so.alexhal.me/cancel/{En(self.ioUUID(uuid) + cancel)._b58()}."
-                  f"\r\n\r\nOtherwise, your temporary password is: {password}.\r\n\r\nThe Signout team."
-    }
-    email = sms.Mailjet(af.iob('mailjetapi.txt').decode('utf8'), 'alex@alexhal.me')
-    email.send(message, userDict['email'])
-
-    userDict['nextkeys'] = af.itb(int(time.time())) + En(cancel)._sha256() + pub + priv
-    if newAccount:
-      userDict['pub'] = pub
-    self.sql.replaceRows('users', userDict)
-
-    return password, priv, pub
 
 
 password = 'baeTgwM3VSG'

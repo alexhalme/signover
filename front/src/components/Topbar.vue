@@ -133,10 +133,10 @@ export default {
   created () {
     // temporary
     if (/8082|5007/.test(window.location)) {
-      var TRUE = false
+      var TRUE = true
       if (TRUE) {
         this.email = 'alex@alexhal.me'
-        // this.pwrdCurrent = 'DpPAnp1Vg9F'
+        this.pwrdCurrent = 'abc123'
       } else {
         this.email = 'maizlyn.rosi@twodrops.org'
         // this.pwrdCurrent = 'AY9MMFhWKre'
@@ -146,10 +146,10 @@ export default {
   updated () {
     // temporary
     if (/8082|5007/.test(window.location)) {
-      var TRUE = false
+      var TRUE = true
       if (TRUE) {
         this.email = 'alex@alexhal.me'
-        // this.pwrdCurrent = 'DpPAnp1Vg9F'
+        this.pwrdCurrent = 'abc123'
       } else {
         this.email = 'maizlyn.rosi@twodrops.org'
         // this.pwrdCurrent = 'AY9MMFhWKre'
@@ -195,8 +195,8 @@ export default {
     // standard password check for change
     pwrdCheck () {
       return [
-        this.pwrdCurrent !== this.pwrdNew[0] && this.pwrdCurrent.length > 8,
-        this.pwrdCurrent !== this.pwrdNew[0] && this.pwrdCurrent.length > 8 && this.pwrdNew[0] === this.pwrdNew[1] && this.pwrdNew[0].length > 8
+        this.pwrdCurrent !== this.pwrdNew[0] && this.pwrdCurrent.length > 5,
+        this.pwrdCurrent !== this.pwrdNew[0] && this.pwrdCurrent.length > 5 && this.pwrdNew[0] === this.pwrdNew[1] && this.pwrdNew[0].length > 5
       ]
     },
     pwrdLogin (btnType) {
@@ -220,55 +220,87 @@ export default {
     logout () {
 
     },
-    logClick (inOut) {
-      if (inOut) {
+    logLoop (server) {
+      if (server) {
         const ezNaCl = new EzNaClWrapper()
+
+        // no such user
+        if (server.step === -1) {
+          EventBus.$emit('notify', ['This username dose not exist'], 'red-6', 2)
+          this.pwrdCurrent = ''
+          this.email = ''
+          return null
+        }
+
+        var uintPBKDF2 = {}
+        for (var key in server.challenge) {
+          uintPBKDF2[key] = ezNaCl.uintBase64(
+            ezNaCl.pbkdf2SHA512bytes(
+              ezNaCl.uintBase64(ezNaCl.sha512(ezNaCl.strUint(this.pwrdCurrent))), server.challenge[key], 32, 100
+            )
+          )
+        }
+
+        if (server.step) {
+          this.modalSituation = server.type
+
+          // if pwrd change request to email
+          if (!server.challenge && this.modalSituation === 'forgot') {
+            this.modalSituation = 'standard'
+            this.pwrdCurrent = ''
+            EventBus.$emit('notify', ['An email was sent to your address to reset the password'], 'green-6', 2)
+            return null
+          }
+
+          if (this.modalSituation === 'passwordchanged') {
+            this.modalSituation = 'standard'
+            this.pwrdCurrent = ''
+            this.pwrdNew = ['', '']
+            EventBus.$emit('notify', ['Password change successful, please login'], 'green-6', 2)
+            return null
+          }
+
+          if (!server.cookie) {
+            this.modalSituation = server.type
+            if (server.type === 'standard') {
+              EventBus.$emit('notify', ['Authentication failed'], 'red-6', 2)
+            }
+            return null
+          } else {
+            var nextPbkdf2 = '' // ezNaCl.uintBase64(ezNaCl.pbkdf2SHA512bytes(ezNaCl.uintBase64(ezNaCl.sha512(ezNaCl.strUint(this.pwrdCurrent))), server.challenge, 32, 100))
+            // this.pwrdCurrent = ''
+            this.$emit('init', nextPbkdf2)
+            return null
+          }
+        }
+
+        // if new hash re pwrd changed
+        var newHash = this.pwrdNew[0].length > 0 && this.pwrdNew[0] === this.pwrdNew[1] ? ezHash(this.pwrdNew[0]) : ''
+
+        $.ajax({
+          dataType: 'json',
+          type: 'post',
+          url: `${this.server}/login`,
+          data: JSON.stringify({ email: this.email, pbkdf2b64: uintPBKDF2, type: this.modalSituation, newhash: newHash })
+        }).done((server) => {
+          this.logLoop(server)
+        }).fail(() => {
+          EventBus.$emit('notify', ['There was a connection problem with the server'], 'red-6', 2)
+        })
+      }
+    },
+    logClick (inOut) {
+      if (!this.modalSituation && this.modalSituation !== '') {
+        this.modalSituation = 'standard'
+      }
+      if (inOut) {
         $.ajax({
           dataType: 'json',
           type: 'post',
           url: `${this.server}/login`,
           data: JSON.stringify({ email: this.email, pbkdf2b64: {}, type: this.modalSituation })
         }).done((server) => {
-          if (server) {
-            // if pwrd change request to email
-            if (!server.challenge && server.type === 'forgot') {
-              this.modalSituation = 'standard'
-              this.pwrdCurrent = ''
-              EventBus.$emit('notify', ['An email was sent to your address to reset the password'], 'green-6', 2)
-              return null
-            }
-
-            this.modalSituation = server.type
-
-            var uintPBKDF2 = {}
-            for (var key in server.challenge) {
-              uintPBKDF2[key] = ezNaCl.uintBase64(
-                ezNaCl.pbkdf2SHA512bytes(
-                  ezNaCl.uintBase64(ezNaCl.sha512(ezNaCl.strUint(this.pwrdCurrent))), server.challenge[key], 32, 100
-                )
-              )
-            }
-
-            // if new hash re pwrd changed
-            var newHash = this.pwrdNew[0].length > 0 && this.pwrdNew[0] === this.pwrdNew[1] ? ezHash(this.pwrdNew[0]) : ''
-
-            $.ajax({
-              dataType: 'json',
-              type: 'post',
-              url: `${this.server}/login`,
-              data: JSON.stringify({ email: this.email, pbkdf2b64: uintPBKDF2, type: this.modalSituation, newhash: newHash })
-            }).done((server) => {
-              if (!server.cookie) {
-                EventBus.$emit('notify', ['Authentication failed'], 'red-6', 2)
-              } else {
-                var nextPbkdf2 = '' // ezNaCl.uintBase64(ezNaCl.pbkdf2SHA512bytes(ezNaCl.uintBase64(ezNaCl.sha512(ezNaCl.strUint(this.pwrdCurrent))), server.challenge, 32, 100))
-                // this.pwrdCurrent = ''
-                this.$emit('init', nextPbkdf2)
-              }
-            }).fail(() => {
-              EventBus.$emit('notify', ['There was a connection problem with the server'], 'red-6', 2)
-            })
-          }
+          this.logLoop(server)
         }).fail(() => {
           EventBus.$emit('notify', ['There was a connection problem with the server'], 'red-6', 2)
         })

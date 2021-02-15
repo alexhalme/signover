@@ -1,103 +1,152 @@
 <template>
   <div class="q-pa-md q-gutter-sm">
-    <q-table
+    <q-table separator="cell"
       :columns="dlist.list.dat.cols.filter(col => col.active)"
       :data="pts"
     >
       <template v-slot:header="props">
-        <!--<q-th :style="`width:${props.col.width};`">-->
+        <!--<q-th :style="`width:${props.cols[0].width};`">-->
         <q-tr>
-          <q-th class="row no-wrap">
-            <q-btn dense flat  icon="add_circle_outline" class="col-auto"
-              @click="actionPts('new', { puid: '', luid: luid, dat: {} })"
-            />
-            <div class="col q-pt-xs">
-              Baseline
+          <q-th>
+            <div class="row no-wrap">
+              <q-btn dense flat  icon="add_circle_outline" class="col-auto"
+                @click="actionPts('new', { puid: '', luid: luid, dat: {} })"
+              />
+              <div class="col q-pt-sm q-ml-sm">
+                Baseline
+              </div>
             </div>
           </q-th>
-          <q-th v-for="col in props.cols" :key="col.cuid">
-            {{col.title}}
+          <q-th v-for="col in props.cols" :key="col.cuid" :style="`width:${col.width}px;`">
+            {{col.title}} {{col.width}}
           </q-th>
         </q-tr>
       </template>
       <template v-slot:body="props">
-        <q-tr>
+        <q-tr no-hover>
           <q-td>
-          </q-td>
-          <q-td v-for="col in dlist.list.dat.cols.map(x => x.cuid)" :key="col">
-            {{props.row.dat[col]}}
-            {{colColDict[col].type === 0}}
-            {{props.row.puid}}
-            <q-input
-              v-if="colColDict[col].type === 0"
-              :value="props.row.dat[col].text"
-              @input="cellChange(props.row.puid, col, { text: $event })"
-            />
-            <div v-if="colColDict[col].type === 1">
-              <div class="row no-wrap">
-                <div class="col">
-                  <div class="float-right">
-                    <q-btn dense icon="add_task"
-                      @click="cellChange(props.row.puid, col, { tasks: [props.row.dat[col].tasks, [{ text: '', check: true}]].flat() })"
-                    />
-                  </div>
-                </div>
+            {{props.row.dat.baseline}}
+            <div class="row no-wrap">
+              <div class="col">
+                <q-input dense borderless style="font-size:8pt;border: 0.5px solid black;border-radius: 3px;height:15px;"
+                  :value="props.row.dat.baseline.name"
+                >
+                <template #before>
+                  <span style="font-size:8pt;height:15px;">
+                    dafs
+                  </span>
+                </template>
+                </q-input>
               </div>
-              <div class="row no-wrap" v-for="(task, taskIndex) in props.row.dat[col].tasks" :key="`${props.row.puid}${col}${taskIndex}`">
+              <div class="col">
+              </div>
+            </div>
+          </q-td>
+          <q-td
+            v-for="col in dlist.list.dat.cols.map(x => x.cuid)"
+            :key="col"
+            :style="`padding:0px;width:${colColDict[col].width}px`"
+          >
+            <div v-if="colColDict[col].type !== 1" class="wrapper">
+              <span v-if="false">
+                {{props.row.dat[col]}}
+                {{colColDict[col].type === 0}}
+                {{props.row.puid}}
+              </span>
+              <q-input dense autogrow textarea square borderless spellcheck="false"
+                v-if="colColDict[col].type === 0"
+                :value="props.row.dat[col].text"
+                @input="cellChangeText(props.row.puid, col, { text: $event })"
+                class="soinput" style="vertical-align: top;"
+              />
+            </div>
+            <!-- :style="`height:${rowHeights[props.rowIndex] - 20}px;`" -->
+            <div v-else>
+              <div class="row no-wrap" style="padding:0px"
+                v-for="(task, taskIndex) in props.row.dat[col].tasks"
+                :key="`${props.row.puid}${col}${taskIndex}`"
+              >
                 <div class="col">
-                  <q-input
+                  <q-input dense class="q-px-xs"  color="black"
                     :value="task.text"
-                  />
-                </div>
-                <div class="col-auto">
-                  <q-checkbox
-                    :value="task.check"
-                  />
-                  <q-btn name="delete" />
+                    @input="cellChangeTask(props.row.puid, col, taskIndex, 'text', $event)"
+                  >
+                    <template v-slot:prepend>
+                      <q-checkbox size="xs" color="dark"
+                        :value="task.check"
+                        @input="cellChangeTask(props.row.puid, col, taskIndex, 'check', $event)"
+                      />
+                    </template>
+                    <template v-slot:after>
+                      <q-btn icon="delete" :disable="false" dense size="sm" flat :class="taskIndex !== props.row.dat[col].tasks.length - 1 ? 'q-mr-lg' : ''"
+                        @click="cellChangeTask(props.row.puid, col, taskIndex, 'delete', null)"
+                      />
+                      <q-btn v-if="taskIndex === props.row.dat[col].tasks.length - 1" icon="add_task" dense size="sm" flat
+                        @click="cellChangeTask(props.row.puid, col, taskIndex, 'add', null)"
+                      />
+                    </template>
+                  </q-input>
                 </div>
               </div>
             </div>
           </q-td>
         </q-tr>
       </template>
-      <!--<template v-slot:body="props">
-        <q-tr>
-          <q-td>
-            {{props.baseline}}
-          </q-td>
-          <q-td v-for="col in Object.keys(props.row).filter(x => x !== 'baseline')" :key="`${props.rowIndex}${col}`">
-              <q-input
-                v-if="colDict[col].type === 0"
-                v-model="props.row[col].text"
-                outlined dense
-              >
-              </q-input>
-            {{colDict[col].type}}
-            {{col}} {{props.row[col]}}
-          </q-td>
-        </q-tr>
-      </template>-->
     </q-table>
   </div>
 </template>
+<style>
+.soinput2 {
+  border-left: 0.5px solid black;
+  border-right: 0.5px solid black;
+}
+.soinput {
+  flex:0.5;
+  display: flex;
+  background: #FFFFFF;
+}
+.wrapper, html, body {
+  height: 100%;
+  margin: 0;
+}
+.wrapper {
+  display: flex;
+  flex-direction: column;
+}
+.q-textarea.q-field--dense .q-field__native {
+  padding: 0px;
+  margin: 0px;
+  height: 100%;
+}
+.q-input {
+  height: 1em;
+  border-top-width: 0em;
+  border-bottom-width: 0em;
+}
+</style>
 <script>
 import $ from 'jquery'
+
+// async function asyncDummy (vueFunction) {
+//   await vueFunction()
+//   return true
+// }
 
 export default {
   name: 'Ptable',
   props: {
     pts: {
-      type: Object,
+      type: Array,
       required: false,
       default () { return {} }
     },
     dlist: {
-      type: Array,
+      type: Object,
       required: false,
       default () { return [] }
     },
     colDict: {
-      type: Object,
+      type: Array,
       required: false,
       default () { return {} }
     }
@@ -127,10 +176,37 @@ export default {
     }
   },
   methods: {
-    cellChange (puid, cuid, event) {
+    getRowHeights () {
+      // this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => 45)
+      // asyncDummy(this.getRowHeightsDummy)
+    },
+    getRowHeightsDummy () {
+      // setTimeout(() => {
+      //   this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => document.getElementById(row).clientHeight)
+      // }, 1)
+    },
+    updateVModel () {
+      this.$emit('update', this.pts)
+    },
+    cellChangeTask (puid, cuid, taskIndex, key, event) {
+      var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
+      switch (key) {
+        case 'delete':
+          this.pts[ptIndex].dat[cuid].tasks = this.pts[ptIndex].dat[cuid].tasks.filter((x, y) => y !== taskIndex)
+          this.pts[ptIndex].dat[cuid].tasks = this.pts[ptIndex].dat[cuid].tasks.length ? this.pts[ptIndex].dat[cuid].tasks : [{ text: '', check: false }]
+          break
+        case 'add':
+          this.pts[ptIndex].dat[cuid].tasks.push({ text: '', check: false })
+          break
+        default:
+          this.pts[ptIndex].dat[cuid].tasks[taskIndex][key] = event
+      }
+      this.updateVModel()
+    },
+    cellChangeText (puid, cuid, event) {
       var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
       this.pts[ptIndex].dat[cuid] = event
-      this.$emit('update', this.pts)
+      this.updateVModel()
     },
     // init reception of bunch of stuff by server
     actionPts (action, info) {

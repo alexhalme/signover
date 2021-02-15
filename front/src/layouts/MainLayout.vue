@@ -20,11 +20,13 @@
       {{pts}}
       <div v-if="logged">
         <div v-for="dlist in solst.dlists" :key="dlist.list.luid">
-          <ptable
-            :dlist="dlist"
-            :colDict="colDict[dlist.list.luid]"
-            v-model="pts[dlist.list.luid]"
-          />
+          <div class="row no-wrap">
+            <ptable
+              :dlist="dlist"
+              :colDict="colDict[dlist.list.luid]"
+              v-model="pts[dlist.list.luid]"
+            />
+          </div>
         </div>
       </div>
     </q-page-container>
@@ -75,9 +77,9 @@ export default {
           } else if (key === 'pts') {
             this.pts = this.solst.dlists.map(x => x.list.luid).reduce((acc, x) => { var y = {}; y[x] = server.pts.filter(pt => pt.luid === x); return { ...acc, ...y } }, {})
             for (var luid in this.pts) {
-              var empties = this.colDict[luid].reduce((acc, x) => { var y = {}; y[x.cuid] = x.type === 0 ? { text: '' } : { tasks: [] }; return { ...acc, ...y } }, {})
+              var empties = this.colDict[luid].reduce((acc, x) => { var y = {}; y[x.cuid] = x.type === 0 ? { text: '' } : { tasks: [{ text: '', check: false }] }; return { ...acc, ...y } }, {})
               for (var ptIndex in this.pts[luid]) {
-                this.pts[luid][ptIndex].dat = { ...empties, ...this.pts[luid][ptIndex].dat }
+                this.pts[luid][ptIndex].dat = { ...JSON.parse(JSON.stringify(empties)), ...this.pts[luid][ptIndex].dat }
               }
             }
           } else {

@@ -25,20 +25,65 @@
       <template v-slot:body="props">
         <q-tr no-hover>
           <q-td>
-            {{props.row.dat.baseline}}
             <div class="row no-wrap">
-              <div class="col">
-                <q-input dense borderless style="font-size:8pt;border: 0.5px solid black;border-radius: 3px;height:15px;"
-                  :value="props.row.dat.baseline.name"
+              {{ parseBaseline(props.row.puid) }}
+              <div class="col-auto">
+                <div class="row no-wrap q-pb-xs"
+                  v-for="baseData in ['name', 'surname', 'mrn', 'insurance']"
+                  :key="`c1${baseData}`"
                 >
-                <template #before>
-                  <span style="font-size:8pt;height:15px;">
-                    dafs
+                  <span>
+                    {{baseData}}
                   </span>
-                </template>
-                </q-input>
+                </div>
               </div>
               <div class="col">
+                <div class="row no-wrap"
+                  v-for="baseData in ['name', 'surname', 'mrn', 'insurance']"
+                  :key="`c1${baseData}`"
+                >
+                  <q-input dense borderless
+                    class="q-pl-xs q-ml-xs q-mb-xs"
+                    style="font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
+                    :value="props.row.dat.baseline[baseData]"
+                    @input="cellChangeBaseline(props.row.puid, baseData, $event)"
+                  />
+                </div>
+              </div>
+              <div class="col-auto q-pl-sm">
+                <div class="row no-wrap"
+                  v-for="baseData in ['dob', 'admit', 'room', 'age']"
+                  :key="`c1${baseData}`"
+                >
+                  <span>
+                    {{baseData}}
+                  </span>
+                </div>
+              </div>
+              <div class="col">
+                <div class="row no-wrap"
+                  v-for="baseData in ['dob', 'admit', 'room', 'age']"
+                  :key="`c1${baseData}`"
+                >
+                  <q-input dense borderless
+                    class="q-pl-xs q-ml-xs q-mb-xs"
+                    style="font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
+                    :value="props.row.dat.baseline[baseData]"
+                    @input="cellChangeBaseline(props.row.puid, baseData, $event)"
+                  />
+                  <span class="q-pl-xs" v-if="baseData==='age'"> gender </span>
+                  <q-input dense borderless v-if="baseData==='age'"
+                    class="q-pl-xs q-ml-xs q-mb-xs"
+                    style="width:40px; font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
+                    :value="props.row.dat.baseline.gender"
+                    @input="cellChangeBaseline(props.row.puid, 'gender', $event)"
+                  />
+                  <q-btn-toggle v-if="baseData==='age' && false" dense flat push style="height:30px;padding:0px;"
+                    class="dense bg-black" text-color="white" toggle-color="grey-6" color="dark"
+                    :options="['M','F','X'].map(x => new Object({value: x, label: x}))"
+                    :value="props.row.dat.baseline.gender"
+                  />
+                </div>
               </div>
             </div>
           </q-td>
@@ -176,6 +221,22 @@ export default {
     }
   },
   methods: {
+    parseBaseline (puid) {
+      var baseLine = this.pts[this.pts.map(x => x.puid).indexOf(puid)].dat.baseline
+
+      var yob = new Date(baseLine.dob).getFullYear()
+      var age = isNaN(yob) ? baseLine.age : new Date().getFullYear() - yob
+
+      var soa = new Date(baseLine.admit).getTime()
+      var los = isNaN(soa) ? 0 : Math.floor((new Date().getTime() - new Date(baseLine.admit).getTime()) / 86400000)
+
+      return [
+        `${baseLine.surname}, ${baseLine.name} (${age}${age ? ' ' : ''}${baseLine.gender.length ? baseLine.gender : ' yo'})`,
+        `${baseLine.mrn} / ${baseLine.insurance}`,
+        `${baseLine.room}`,
+        `${baseLine.admit.length ? 'A ' : ''}${baseLine.admit}${los ? ' (LOS ' : ''}${los ? String(los) : ''}${los ? 'd)' : ''}`
+      ].map(y => y.replace(' ()', '').replace(' / ', '')).filter(x => x)
+    },
     getRowHeights () {
       // this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => 45)
       // asyncDummy(this.getRowHeightsDummy)
@@ -187,6 +248,11 @@ export default {
     },
     updateVModel () {
       this.$emit('update', this.pts)
+    },
+    cellChangeBaseline (puid, key, event) {
+      var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
+      this.pts[ptIndex].dat.baseline[key] = event
+      this.updateVModel()
     },
     cellChangeTask (puid, cuid, taskIndex, key, event) {
       var ptIndex = this.pts.map(x => x.puid).indexOf(puid)

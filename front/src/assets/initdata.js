@@ -1,7 +1,7 @@
 export function InitData () {
   return {
     logged: false,
-    drawer: false,
+    showDrawer: false,
     // server: 'https://so.alexhal.me',
     nextPbkdf2: '',
     user: {},

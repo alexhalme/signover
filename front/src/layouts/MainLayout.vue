@@ -7,17 +7,17 @@
         :user="user"
         @init="init"
         @logout="logout"
+        @drawerState="showDrawer = !showDrawer && logged"
       />
     </q-header>
 
     <drawer
-      v-if="logged"
+      v-if="logged && showDrawer"
       v-model="solst"
       :user="user"
     />
 
     <q-page-container>
-      {{pts}}
       <div v-if="logged">
         <div v-for="dlist in solst.dlists" :key="dlist.list.luid">
           <div class="row no-wrap">
@@ -62,6 +62,9 @@ export default {
     this.$store.commit('changeServerURL', /8082|5007/.test(window.location) ? 'http://127.0.0.1:5007' : 'https://so.alexhal.me')
   },
   methods: {
+    drawerState () {
+      console.log('drawerState')
+    },
     // logout initiated by TopBar - here we adjust variables
     logout () {
       Object.assign(this, InitData())

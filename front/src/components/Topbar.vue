@@ -57,10 +57,14 @@
       </q-card>
     </q-dialog>
     <q-toolbar class="col-4 bg-blue-6">
+      <q-btn icon="menu" dense
+        @click="$emit('drawerState')"
+      />
       <q-icon name="delete_sweep" size="md" :color="temp" v-if="temp" />
       <q-btn flat dense round size="md"
         v-for="letter in ['lr', 'l', 'r', 'u', 'p']"
         :label="letter" :key="letter"
+        :color="letter === 'lr' ? temp : 'white'"
         @click="wipe(letter)"
       />
     </q-toolbar>

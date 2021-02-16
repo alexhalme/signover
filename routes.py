@@ -180,10 +180,16 @@ def modifySolsts(solst: Solst, req: Request, scso: Optional[str] = Cookie(None))
   if solst.action in ['select', 'deselect']:
     lst.selection(solst.action == 'select')
 
+  if solst.action == 'changename':
+    lst.dat['name'] = solst.dat['name']
+    lst.updateList(newDat = lst.dat)
+
+
   for action, kwargs in {
       'new': [('setLists', {'summary': True})],
       'select': [('setLists', {'summary': False})],
-      'deselect': [('setLists', {'summary': False})]
+      'deselect': [('setLists', {'summary': False})],
+      'changename': [('setLists', {'summary': None})]
       }.get(solst.action):
     getattr(auth, action)(**(kwargs if kwargs else {}))
 
@@ -228,8 +234,8 @@ def modifyCols(cols: Cols, req: Request, scso: Optional[str] = Cookie(None)):
 
 class Pts(BaseModel):
   action: str
-  puid: str
-  luid: str
+  puids: list
+  luids: list
   dat: dict
 
 @app.post('/pts')
@@ -238,9 +244,13 @@ def modifyCols(pts: Pts, req: Request, scso: Optional[str] = Cookie(None)):
   if not auth.priv:
     return closeAjax(auth.setResponse({'success': False}), noCookie = True)
 
-  pt = patients.Pt(auth, pts.puid, pts.luid)
+  group = [patients.Pt(auth, puid, luid) for puid, luid in zip(pts.puids, pts.luids)]
 
-  auth.setPts()
+  if pts.action == 'save':
+    for pt in group:
+      pt.addDat(pts.dat[pt.puid])
+
+  auth.setPts([pt.puid for pt in group])
 
   return closeAjax(auth.setResponse({}))
 

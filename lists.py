@@ -96,6 +96,12 @@ class SOList:
 
   def updateList(self, newDat = None, newActive = None):
 
+    if newDat:
+      # remove if requested
+      newDat['cols'] = [col for col in newDat['cols'] if (True if not 'wipe' in col else not col['wipe'])]
+      # inactive at the end
+      newDat['cols'] = af.flst(  [[colA for colA in newDat['cols'] if colA['active']], [colI for colI in newDat['cols'] if not colI['active']]])
+
     self.auth.sql.replaceRows('lists', {
       'luid': self.luid,
       'dat': tf.jb(newDat if newDat else self.dat, self.aes),
@@ -113,7 +119,7 @@ class SOList:
     self.shareList(1, uuids = [self.auth.userDict['uuid']], first = True)
     self.updateList(
       newDat = {
-        'name': f"My new list {self.luid}",
+        'name': f"(nameless list)",
         'cols': []
       },
       newActive = 1
@@ -153,15 +159,12 @@ class SOList:
       colCopy = newDat['cols'][colIndex]
       newDat['cols'].pop(colIndex)
       newIndex = colIndex + {'keyboard_arrow_up': -1, 'keyboard_arrow_down': 1}.get(what)
-      if not len(newDat['cols']) > newIndex > -1:
+      if not len(newDat['cols']) >= newIndex > -1:
         return False
       newDat['cols'].insert(newIndex, colCopy)
 
-    if what in ['toggle_on', 'toggle_off']:
-      newDat['cols'][colIndex]['active'] = {'toggle_on': True, 'toggle_off': False}.get(what)
-
-    # inactive at the end
-    newDat['cols'] = af.flst([[colA for colA in newDat['cols'] if colA['active']], [colI for colI in newDat['cols'] if not colI['active']]])
+    if what in ['visibility', 'visibility_off']:
+      newDat['cols'][colIndex]['active'] = {'visibility_off': True, 'visibility': False}.get(what)
 
     self.updateList(newDat = newDat)
 

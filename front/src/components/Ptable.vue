@@ -3,9 +3,17 @@
     <q-table separator="cell"
       :columns="dlist.list.dat.cols.filter(col => col.active)"
       :data="pts"
+      :rows-per-page-options="[50, 25, 10]"
     >
+      <template #top-left>
+        <q-chip text-color="white" square class="q-ma-xs text-bold"
+          :style="`border: 1.5px solid black;border-radius: 0px;background: #${dlist.list.luid.substring(0, 6).toUpperCase()};`"
+        >
+        <q-item-label class="caps text-bold text-white" overline
+        >{{ dlist.list.dat.name }}</q-item-label>
+        </q-chip>
+      </template>
       <template v-slot:header="props">
-        <!--<q-th :style="`width:${props.cols[0].width};`">-->
         <q-tr>
           <q-th>
             <div class="row no-wrap">
@@ -17,78 +25,22 @@
               </div>
             </div>
           </q-th>
-          <q-th v-for="col in props.cols" :key="col.cuid" :style="`width:${col.width}px;`">
-            {{col.title}} {{col.width}}
+          <q-th v-for="col in props.cols.filter(x => x.active)" :key="col.cuid" :style="`width:${col.width}px;`">
+            {{col.title}}
           </q-th>
         </q-tr>
       </template>
       <template v-slot:body="props">
         <q-tr no-hover>
-          <q-td>
-            <div class="row no-wrap">
-              {{ parseBaseline(props.row.puid) }}
-              <div class="col-auto">
-                <div class="row no-wrap q-pb-xs"
-                  v-for="baseData in ['name', 'surname', 'mrn', 'insurance']"
-                  :key="`c1${baseData}`"
-                >
-                  <span>
-                    {{baseData}}
-                  </span>
-                </div>
-              </div>
-              <div class="col">
-                <div class="row no-wrap"
-                  v-for="baseData in ['name', 'surname', 'mrn', 'insurance']"
-                  :key="`c1${baseData}`"
-                >
-                  <q-input dense borderless
-                    class="q-pl-xs q-ml-xs q-mb-xs"
-                    style="font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
-                    :value="props.row.dat.baseline[baseData]"
-                    @input="cellChangeBaseline(props.row.puid, baseData, $event)"
-                  />
-                </div>
-              </div>
-              <div class="col-auto q-pl-sm">
-                <div class="row no-wrap"
-                  v-for="baseData in ['dob', 'admit', 'room', 'age']"
-                  :key="`c1${baseData}`"
-                >
-                  <span>
-                    {{baseData}}
-                  </span>
-                </div>
-              </div>
-              <div class="col">
-                <div class="row no-wrap"
-                  v-for="baseData in ['dob', 'admit', 'room', 'age']"
-                  :key="`c1${baseData}`"
-                >
-                  <q-input dense borderless
-                    class="q-pl-xs q-ml-xs q-mb-xs"
-                    style="font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
-                    :value="props.row.dat.baseline[baseData]"
-                    @input="cellChangeBaseline(props.row.puid, baseData, $event)"
-                  />
-                  <span class="q-pl-xs" v-if="baseData==='age'"> gender </span>
-                  <q-input dense borderless v-if="baseData==='age'"
-                    class="q-pl-xs q-ml-xs q-mb-xs"
-                    style="width:40px; font-size:10pt;border: 0.5px solid black;border-radius: 3px;height:18px;"
-                    :value="props.row.dat.baseline.gender"
-                    @input="cellChangeBaseline(props.row.puid, 'gender', $event)"
-                  />
-                  <q-btn-toggle v-if="baseData==='age' && false" dense flat push style="height:30px;padding:0px;"
-                    class="dense bg-black" text-color="white" toggle-color="grey-6" color="dark"
-                    :options="['M','F','X'].map(x => new Object({value: x, label: x}))"
-                    :value="props.row.dat.baseline.gender"
-                  />
-                </div>
-              </div>
-            </div>
-          </q-td>
+          <baseline
+            v-model="editBL"
+            :puid="props.row.puid"
+            :pts="pts"
+            :baselineData="props.row.dat.baseline"
+            @changeBaseline="cellChangeBaseline"
+          />
           <q-td
-            v-for="col in dlist.list.dat.cols.map(x => x.cuid)"
+            v-for="col in dlist.list.dat.cols.filter(x => x.active).map(y => y.cuid)"
             :key="col"
             :style="`padding:0px;width:${colColDict[col].width}px`"
           >
@@ -97,15 +49,23 @@
                 {{props.row.dat[col]}}
                 {{colColDict[col].type === 0}}
                 {{props.row.puid}}
+                {{parseTracker(props.row.puid, col)}}
               </span>
               <q-input dense autogrow textarea square borderless spellcheck="false"
                 v-if="colColDict[col].type === 0"
                 :value="props.row.dat[col].text"
                 @input="cellChangeText(props.row.puid, col, { text: $event })"
                 class="soinput" style="vertical-align: top;"
-              />
+              >
+                <template #append v-if="parseTracker(props.row.puid, col)">
+                  <q-icon
+                    :name="{ 2: 'hourglass_empty', 1: 'done_all' }[parseTracker(props.row.puid, col)]"
+                    size="xs"
+                    class="q-pa-none q-ma-none"
+                  />
+                </template>
+              </q-input>
             </div>
-            <!-- :style="`height:${rowHeights[props.rowIndex] - 20}px;`" -->
             <div v-else>
               <div class="row no-wrap" style="padding:0px"
                 v-for="(task, taskIndex) in props.row.dat[col].tasks"
@@ -116,7 +76,7 @@
                     :value="task.text"
                     @input="cellChangeTask(props.row.puid, col, taskIndex, 'text', $event)"
                   >
-                    <template v-slot:prepend>
+                    <template v-slot:before>
                       <q-checkbox size="xs" color="dark"
                         :value="task.check"
                         @input="cellChangeTask(props.row.puid, col, taskIndex, 'check', $event)"
@@ -146,9 +106,15 @@
   border-right: 0.5px solid black;
 }
 .soinput {
-  flex:0.5;
+  flex:0.1;
   display: flex;
   background: #FFFFFF;
+}
+.sotinput {
+  font-size:10pt;
+  border: 0.5px solid black;
+  border-radius: 3px;
+  height:18px;
 }
 .wrapper, html, body {
   height: 100%;
@@ -163,13 +129,14 @@
   margin: 0px;
   height: 100%;
 }
-.q-input {
-  height: 1em;
-  border-top-width: 0em;
-  border-bottom-width: 0em;
+.tinytag {
+  height:22px;
+  padding-left:4px;
+  padding-right:4px;
 }
 </style>
 <script>
+import Baseline from './Baseline.vue'
 import $ from 'jquery'
 
 // async function asyncDummy (vueFunction) {
@@ -179,19 +146,25 @@ import $ from 'jquery'
 
 export default {
   name: 'Ptable',
+  components: { Baseline },
   props: {
     pts: {
       type: Array,
       required: false,
-      default () { return {} }
+      default () { return [] }
     },
     dlist: {
       type: Object,
       required: false,
-      default () { return [] }
+      default () { return {} }
     },
     colDict: {
       type: Array,
+      required: false,
+      default () { return [] }
+    },
+    changeTracker: {
+      type: Object,
       required: false,
       default () { return {} }
     }
@@ -202,11 +175,8 @@ export default {
   },
   data () {
     return {
-      emptyCell: {
-        9: { },
-        0: { text: '' },
-        1: { tasks: [] }
-      }
+      editBL: {},
+      lastModif: 0
     }
   },
   computed: {
@@ -220,7 +190,20 @@ export default {
       return this.colDict.reduce((acc, x) => { var y = {}; y[x.cuid] = x; return { ...acc, ...y } }, {})
     }
   },
+  created () {
+    this.makeEditBL()
+  },
   methods: {
+    makeEditBL () {
+      for (var i in this.pts) {
+        if (!(this.pts[i].puid in this.editBL)) {
+          this.editBL[this.pts[i].puid] = false
+        }
+      }
+    },
+    parseTracker (puid, cuid) {
+      return puid in this.changeTracker.data ? (cuid in this.changeTracker.data[puid] ? (this.changeTracker.data[puid][cuid] ? 2 : 1) : 0) : 0
+    },
     parseBaseline (puid) {
       var baseLine = this.pts[this.pts.map(x => x.puid).indexOf(puid)].dat.baseline
 
@@ -230,12 +213,22 @@ export default {
       var soa = new Date(baseLine.admit).getTime()
       var los = isNaN(soa) ? 0 : Math.floor((new Date().getTime() - new Date(baseLine.admit).getTime()) / 86400000)
 
-      return [
-        `${baseLine.surname}, ${baseLine.name} (${age}${age ? ' ' : ''}${baseLine.gender.length ? baseLine.gender : ' yo'})`,
-        `${baseLine.mrn} / ${baseLine.insurance}`,
-        `${baseLine.room}`,
-        `${baseLine.admit.length ? 'A ' : ''}${baseLine.admit}${los ? ' (LOS ' : ''}${los ? String(los) : ''}${los ? 'd)' : ''}`
-      ].map(y => y.replace(' ()', '').replace(' / ', '')).filter(x => x)
+      var retval = {
+        name: `${baseLine.surname}, ${baseLine.name}`,
+        id: `${age}${age ? ' ' : ''}${baseLine.gender.length ? baseLine.gender : (age ? ' yo' : '')}`,
+        mrn: `${baseLine.mrn}${baseLine.mrn.length && baseLine.insurance.length ? ' / ' : ''}${baseLine.insurance}`,
+        room: `${baseLine.room}`,
+        dates: `${baseLine.admit.length ? 'A ' : ''}${baseLine.admit.length ? baseLine.admit : ''}`,
+        los: `${los ? 'LOS ' : ''}${los ? String(los) : ''}${los ? 'd' : ''}`
+      }
+
+      for (var key in retval) {
+        if (retval[key].replace(' / ', '').replace(' ', '') === '') {
+          delete retval[key]
+        }
+      }
+
+      return retval
     },
     getRowHeights () {
       // this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => 45)
@@ -246,13 +239,14 @@ export default {
       //   this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => document.getElementById(row).clientHeight)
       // }, 1)
     },
-    updateVModel () {
+    updateVModel (puid, cuid) {
       this.$emit('update', this.pts)
+      this.$emit('recordChange', this.luid, puid, cuid)
     },
     cellChangeBaseline (puid, key, event) {
       var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
       this.pts[ptIndex].dat.baseline[key] = event
-      this.updateVModel()
+      this.updateVModel(puid, 'baseline')
     },
     cellChangeTask (puid, cuid, taskIndex, key, event) {
       var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
@@ -267,12 +261,12 @@ export default {
         default:
           this.pts[ptIndex].dat[cuid].tasks[taskIndex][key] = event
       }
-      this.updateVModel()
+      this.updateVModel(puid, cuid)
     },
     cellChangeText (puid, cuid, event) {
       var ptIndex = this.pts.map(x => x.puid).indexOf(puid)
       this.pts[ptIndex].dat[cuid] = event
-      this.updateVModel()
+      this.updateVModel(puid, cuid)
     },
     // init reception of bunch of stuff by server
     actionPts (action, info) {
@@ -280,9 +274,9 @@ export default {
         dataType: 'json',
         type: 'post',
         url: `${this.server}/pts`,
-        data: JSON.stringify({ action: action, puid: info.puid, luid: info.luid, dat: info.dat })
+        data: JSON.stringify({ action: action, puids: [info.puid], luids: [info.luid], dat: info.dat })
       }).done((server) => {
-        this.parseServerPts(server)
+        this.$emit('ptsFromServer', server)
       })
     }
   }

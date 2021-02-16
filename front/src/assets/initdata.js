@@ -7,7 +7,7 @@ export function InitData () {
     user: {},
     solst: { dlists: [], slists: [] },
     pts: {},
-    colDict: {}
+    changeTracker: { time: 0, data: {} }
   }
 }
 

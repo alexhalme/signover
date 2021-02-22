@@ -84,58 +84,6 @@
             <q-tab name="users" label="Users" no-caps />
           </q-tabs>
 
-          <div v-if="selTab[dlist.list.luid].tab==='users'">
-            <q-item dense class="row no-wrap q-py-none q-my-none"
-              v-for="userRights in dlist.rights"
-              :key="userRights.uuid"
-            >
-              <div class="col-auto">
-                <div class="row no-wrap">
-                  {{ userRights.dat.name }}
-                </div>
-              </div>
-              <div class="col q-mr-sm">
-                <div class="float-right">
-                  <div class="row no-wrap q-py-none">
-                  <q-chip square dense color="grey-1" class="q-px-none q-mx-xs q-py-none"
-                    v-for="priv in [0, 1, 2, 3, 4]"
-                    :key="priv"
-                    :clickable="canChangePriv(dlist.list.luid, userRights.uuid, priv)"
-                    :disable="!canChangePriv(dlist.list.luid, userRights.uuid, priv)"
-                  >
-                    <q-icon size="xs" class="q-py-none q-px-none" :color="userRights.priv === priv ? 'orange-6' : 'black'"
-                      style="padding-top:10px;padding-bottom:10px;"
-                      :name="privIcons[priv]"
-                      @click="actionRights('priv', dlist.list.luid, {...userRights, priv: priv})"
-                    />
-                  </q-chip>
-                </div>
-                </div>
-              </div>
-            </q-item>
-
-            <q-item class="row no-wrap">
-              <div class="col-auto q-mr-sm">
-                <q-chip square dense color="grey-1"
-                  clickable
-                  @click="actionRights('new', dlist.list.luid, { email: selTab[dlist.list.luid].newUser, priv: 4 })"
-                  :disabled="Boolean(!validateEmail(selTab[dlist.list.luid].newUser) || (dlist.rights.map(x => x.email).indexOf(selTab[dlist.list.luid].newUser) + 1))"
-                >
-                  <q-icon size="sm" class="q-py-sm q-mt-sm q-ml-none" :color="'black'"
-                    style="padding-top:10px;padding-bottom:10px;"
-                    name="add_circle_outline"
-                  />
-                </q-chip>
-              </div>
-              <div class="col-6">
-                <q-input outlined dense
-                  label="Email address"
-                  v-model="selTab[dlist.list.luid].newUser"
-                />
-              </div>
-            </q-item>
-          </div>
-
           <div v-if="selTab[dlist.list.luid].tab==='columns'">
             <div v-for="(col, colIndex) in dlist.list.dat.cols" :key="col.cuid">
             <q-item class="row no-wrap" dense>
@@ -187,11 +135,68 @@
               </div>
             </q-item>
           </div>
+
+          <div v-if="selTab[dlist.list.luid].tab==='users'">
+            <q-item dense class="row no-wrap q-py-none q-my-none"
+              v-for="userRights in dlist.rights"
+              :key="userRights.uuid"
+            >
+              <div class="col-auto">
+                <div class="row no-wrap">
+                  {{ userRights.dat.name }}
+                </div>
+              </div>
+              <div class="col q-mr-sm">
+                <div class="float-right">
+                  <div class="row no-wrap q-py-none">
+                  <q-chip square dense color="grey-1" class="q-px-none q-mx-xs q-py-none"
+                    v-for="priv in [0, 1, 2, 3, 4]"
+                    :key="priv"
+                    :clickable="canChangePriv(dlist.list.luid, userRights.uuid, priv)"
+                    :disable="!canChangePriv(dlist.list.luid, userRights.uuid, priv)"
+                  >
+                    <q-icon size="xs" class="q-py-none q-px-none" :color="userRights.priv === priv ? 'orange-6' : 'black'"
+                      style="padding-top:10px;padding-bottom:10px;"
+                      :name="privIcons[priv]"
+                      @click="actionRights('priv', dlist.list.luid, {...userRights, priv: priv})"
+                    />
+                  </q-chip>
+                </div>
+                </div>
+              </div>
+            </q-item>
+
+            <q-item class="row no-wrap">
+              <div class="col-auto q-mr-sm">
+                <q-chip square dense color="grey-1"
+                  clickable
+                  @click="actionRights('new', dlist.list.luid, { email: selTab[dlist.list.luid].newUser, priv: 4 })"
+                  :disabled="Boolean(!validateEmail(selTab[dlist.list.luid].newUser) || (dlist.rights.map(x => x.email).indexOf(selTab[dlist.list.luid].newUser) + 1))"
+                >
+                  <q-icon size="sm" class="q-py-sm q-mt-sm q-ml-none" :color="'black'"
+                    style="padding-top:10px;padding-bottom:10px;"
+                    name="add_circle_outline"
+                  />
+                </q-chip>
+              </div>
+              <div class="col-6">
+                <q-input outlined dense
+                  label="Email address"
+                  v-model="selTab[dlist.list.luid].newUser"
+                />
+              </div>
+            </q-item>
+          </div>
         </q-list>
       </div>
     </div>
   </q-drawer>
 </template>
+<style scoped>
+.user-item {
+  display: flex;
+}
+</style>
 <script>
 // import EventBus from 'assets/eventbus.js'
 import $ from 'jquery'

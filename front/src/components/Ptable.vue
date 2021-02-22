@@ -15,7 +15,7 @@
       </template>
       <template v-slot:header="props">
         <q-tr>
-          <q-th>
+          <q-th >
             <div class="row no-wrap">
               <q-btn dense flat  icon="add_circle_outline" class="col-auto"
                 @click="actionPts('new', { puid: '', luid: luid, dat: {} })"
@@ -25,7 +25,7 @@
               </div>
             </div>
           </q-th>
-          <q-th v-for="col in props.cols.filter(x => x.active)" :key="col.cuid" :style="`width:${col.width}px;`">
+          <q-th v-for="col in props.cols.filter(x => x.active)" :key="col.cuid"  :style="`width:${col.width}px;`">
             {{col.title}}
           </q-th>
         </q-tr>
@@ -43,19 +43,34 @@
             v-for="col in dlist.list.dat.cols.filter(x => x.active).map(y => y.cuid)"
             :key="col"
             :style="`padding:0px;width:${colColDict[col].width}px`"
+            class="bg-grey-6"
           >
-            <div v-if="colColDict[col].type !== 1" class="wrapper">
+            <div v-if="colColDict[col].type !== 1" class=" exp-cells ">
               <span v-if="false">
                 {{props.row.dat[col]}}
                 {{colColDict[col].type === 0}}
                 {{props.row.puid}}
                 {{parseTracker(props.row.puid, col)}}
               </span>
-              <q-input dense autogrow textarea square borderless spellcheck="false"
+              <!-- <q-input dense autogrow textarea square borderless spellcheck="false"
                 v-if="colColDict[col].type === 0"
                 :value="props.row.dat[col].text"
                 @input="cellChangeText(props.row.puid, col, { text: $event })"
                 class="soinput" style="vertical-align: top;"
+              >
+                <template #append v-if="parseTracker(props.row.puid, col)">
+                  <q-icon
+                    :name="{ 2: 'hourglass_empty', 1: 'done_all' }[parseTracker(props.row.puid, col)]"
+                    size="xs"
+                    class="q-pa-none q-ma-none"
+                  />
+                </template>
+              </q-input> -->
+              <q-input dense autogrow textarea square borderless spellcheck="false"
+                v-if="colColDict[col].type === 0"
+                :value="props.row.dat[col].text"
+                @input="cellChangeText(props.row.puid, col, { text: $event })"
+                class="bg-grey-2 cell-txt"
               >
                 <template #append v-if="parseTracker(props.row.puid, col)">
                   <q-icon
@@ -101,6 +116,23 @@
   </div>
 </template>
 <style>
+.exp-cells {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  align-content: stretch;
+  height: 100%;
+}
+
+.cell-txt {
+  /* flex: 1 1 auto; */
+  display: inline;
+  width: 100%;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
 .soinput2 {
   border-left: 0.5px solid black;
   border-right: 0.5px solid black;
@@ -138,11 +170,6 @@
 <script>
 import Baseline from './Baseline.vue'
 import $ from 'jquery'
-
-// async function asyncDummy (vueFunction) {
-//   await vueFunction()
-//   return true
-// }
 
 export default {
   name: 'Ptable',
@@ -229,15 +256,6 @@ export default {
       }
 
       return retval
-    },
-    getRowHeights () {
-      // this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => 45)
-      // asyncDummy(this.getRowHeightsDummy)
-    },
-    getRowHeightsDummy () {
-      // setTimeout(() => {
-      //   this.rowHeights = this.pts.map((x, y) => `ptableqtr${y}`).filter(z => document.getElementById(z)).map(row => document.getElementById(row).clientHeight)
-      // }, 1)
     },
     updateVModel (puid, cuid) {
       this.$emit('update', this.pts)
